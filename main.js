@@ -1,0 +1,1734 @@
+try {
+  ("use strict");
+  /*Can you hear forever, my heart beat
+      君に届くようにと描いたのは
+      Don’t you know everlasting stories
+      見上げた瞳に映る三日月
+      Can you hear forever, my heart beat
+      もっと信じ合えたら共に行こう
+      Don’t you know everlasting stories
+      果てなく広がる空の彼方へ*/
+
+  /*由于是采用注入无奈只能单文件所以只能采用这种方式进行标注*/
+
+  //========== 全局变量 ==========
+  let GLOBAL_USER_TOKEN = "";
+  let mainWindow;
+  let GLOBAL_GRACE_TIME = 15000; // 游戏退出倒计时时间，默认15s
+  let GLOBAL_STARTUP_WAIT_TIME = 180000; // 第一次启动等待时间，默认3分钟
+  let GLOBAL_CHECK_MODE = "api";
+  let GLOBAL_CURRENT_GAME_ID = null;
+  let GLOBAL_CURRENT_GAME_NAME = "";
+
+  //========== 常量 ==========
+  const DevMode = false; //调试开关（true为开启）
+  const TIME_TEXT_MAP = {
+    100: "立即暂停",
+    15000: "15秒",
+    30000: "30秒",
+    60000: "1分钟",
+    180000: "3分钟",
+    300000: "5分钟",
+    600000: "10分钟",
+    900000: "15分钟",
+  };
+  //社区维护的游戏进程名
+  /*
+  有点怪，雷神居然有在维护这个indexdb，我一直以为是历史遗留问题，但是这次他居然吧战地6和星际战甲这类游戏的进程名放进来了。。。
+  这不对了，他这个设计的意义是什么呢？
+  */
+  const CommunityGameDB = {
+    1559: "VALORANT-Win64-Shipping.exe", //无畏契约
+    137: "vermintide2_dx12.exe,vermintide2.exe", //末世鼠疫2
+    254: "EscapeFromTarkov.exe,EscapeFromTarkovArena.exe", //逃离塔科夫
+    9942: "EscapeFromTarkov.exe", //逃离塔科夫
+    5226: "PioneerGame.exe,PioneerGame-d.exe,PioneerGame-e.exe", //ARC Raiders
+    7288: "Aion2.exe", //永恒之塔2
+    //114: "League of Legends.exe", //英雄联盟
+    2661: "Discovery.exe,Discovery-d.exe,Discovery-e.exe", //THE FINALS
+    6338: "F1_25.exe", //F1 25
+    188: "Titanfall2.exe", //泰坦陨落2
+    5406: "EpicSeven.exe", //第七史诗
+    3043: "StarRail.exe", //崩坏：星穹铁道
+    232: "HuntGame.exe", //猎杀：对决
+    6985: "NBA2K26.exe", //NBA2k26
+    1693: "EternalReturn.exe", //永恒轮回
+    6546: "BlueArchive.exe", //蔚蓝档案
+    8538: "Nioh3.exe", //仁王3
+    230: "hl2.exe,tf_win64.exe,tf.exe", //军团要塞2
+    5345: "FlightSimulator2024.exe", //微软飞行模拟2024
+    4684: "deadlock.exe", //死锁
+    8688: "John Carpenter's Toxic Commando.exe", //约翰·卡朋特的毒液突击队
+    3219: "Photoshop.exe,Lightroom.exe", //Photoshop Beta AI
+    6536: "PEAK.exe", //PEAK
+    6129: "Marathon.exe", //失落星船：马拉松
+    3424: "forza_steamworks_release_final.exe", //Forza Motorsport
+    192: "Adjust.exe,javaw.exe,usched.exe,java.exe", //我的世界
+    2639: "Adjust.exe,javaw.exe,usched.exe,java.exe", //我的世界国服
+    704: "hoi4.exe,hearts of iron IV.exe",
+    3570: "WorldOfWarships64.exe,WorldOfWarships.exe,Korabli64.exe,Korabli.exe", //战舰世界莱福
+    2925: "InphaseNXD.exe",
+    4804: "PathOfExile.exe,PathOfExile2_x64Steam.exe,PathOfExileSteam.exe,PathOfExile2EGS.exe,PathOfExile2_x64.exe,PathOfExileEGS.exe,PathOfExile2.exe,PathOfExile_x64.exe,PathOfExile_x64Steam.exe,PathOfExile_x64EGS.exe",
+    4330: "WS-Win64-Shipping.exe", //灵魂面甲
+    2740: "Diablo IV.exe", //暗黑破坏神4
+    1544: "Battle.net.exe", //战网
+    2642:"ffxivboot.exe,ffxivboot64.exe,ffxivlauncher.exe,FINAL FANTASY XIV.exe,ffxiv_dx11.exe,ffxiv.exe",//ff14
+    8668:"Arknights.exe,MuMuNxDevice.exe",//明日方舟国服
+    2223:"MuMuNxDevice.exe,NemuService.exe,NemuPlayer.exe",//明日方舟国际服
+    11006:"How to Fish.exe",//渔力全开
+    4265:"AbioticFactor-Win64-Shipping.exe,AbioticFactor.exe",//无机因素
+    5285:"Buckshot Roulette.exe",//Buckshot Roulette
+    1213:"osu!.exe",
+    8638:"muv_luv_girlsgarden_cl.exe,muv_luv_girlsgardenx_cl.exe",
+    4570:"cod.exe,codCrashHandler.exe,sp22-codCrashHandler.exe,sp22-cod.exe,mp22-cod.exe,mp22-codCrashHandler.exe,bootstrapperCrashHandler.exe,bootstrapper.exe,nvngx_update.exe,cod22-cod.exe,mp23-cod.exe,sp23-cod.exe,gslbexternal.exe,mp24-cod.exe,CrashLogsGenerator.exe,sp24-cod.exe,sp26-cod.exe,cod24-cod.exe,cod25-cod.exe,BlackOps6.exe,cod23-cod.exe,cod26-cod.exe" //使命召唤
+  };
+  const ExcludedGameIDs = [109, 437, 274, 1921, 1342, 860, 2529, 4371]; //steam epic 育碧uplay eaapp  rockstar GOG 远程同乐 碧蓝幻想
+  const UI_STATES = {
+    //监控中
+    ACTIVE: {
+      color: "#4caf50",
+      bg: "rgba(76, 175, 80, 0.15)",
+      text: "🟢 监控中",
+      code: "active",
+    },
+    //倒计时
+    COUNTING: {
+      color: "#ff9800",
+      bg: "rgba(255, 153, 0, 0.22)",
+      text: "⏳ 倒计时",
+      code: "counting",
+    },
+    //空闲
+    IDLE: {
+      color: "#a4a4a4",
+      bg: "rgba(255,255,255,0.1)",
+      text: "⚙️ 自动监控",
+      code: "idle",
+    },
+    MISSING: {
+      color: "#2196f3",
+      bg: "rgba(33, 150, 243, 0.15)",
+      text: "🔗 提交进程",
+      code: "missing",
+    },
+    WAITING: {
+      color: "#00bcd4",
+      bg: "rgba(0, 188, 212, 0.15)",
+      text: "⏳ 等待启动",
+      code: "waiting",
+    },
+  };
+  const EXCLUDED_PROCESS_KEYWORDS = ["crashhandler", "crashpad_handler"];
+  //========== 模块引入 ==========
+  const { app, ipcMain, Notification } = require("electron"); // 结构引入 Electron 使用的模块
+  const { execFileSync, execFile } = require("child_process");
+  const path = require("path"); //用于处理路径
+  const fs = require("fs"); //用于文件操作
+  const userDataPath = app.getPath("userData");
+  const win32Addon = require("@leigod-rs/win32-node-addon"); //拿到雷神提供的API用于检测进程是否运行
+  const logFilePath = path.join(userDataPath, "leigod_Monitor_log.txt"); //和文件名拼接成完整的路径
+
+  // ========== 工具函数 ==========
+  //该函数用于记录日志
+  function writeLog(message) {
+    //用于记录日志
+    const timestamp = new Date().toISOString(); //获取当前时间
+
+    const logMessage = `[${timestamp}] ${message}\n---------------------------------------\n`;
+    try {
+      fs.appendFileSync(logFilePath, logMessage);
+      // eslint-disable-next-line no-unused-vars
+    } catch (err) {
+      /* empty */
+    } //写入日志文件
+  }
+  //该函数用于解析游戏进程字符串
+  function parseGameProcess(gameProcessStr) {
+    //用于解析游戏进程字符串
+    if (!gameProcessStr) {
+      return []; // 空、null、undefined 都返回空数组
+    }
+    // 去除前后空格，按逗号分割，再过滤掉空字符串（防止 "a,,b" 出现空项）
+    return gameProcessStr
+      .split(",")
+      .map((p) => p.trim())
+      .filter((p) => p !== "");
+  }
+  function normalizeCustomProcesses(gameProcessStr) {
+    const processes = gameProcessStr
+      .split(/[,;\n\r，；]+/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+    return [...new Set(processes)].filter(
+      (processName) =>
+        processName.length <= 260 && !/[\\/:*?"<>|]/.test(processName),
+    );
+  }
+  //该函数用于处理时间吧时间转换为 mm:ss格式
+  function formatTime(time) {
+    if (time < 0) time = 0;
+    const totalSeconds = Math.ceil(time / 1000); //毫秒转换为秒
+    const m = Math.floor(totalSeconds / 60)
+      .toString()
+      .padStart(2, "0"); //转换为分钟
+    const s = (totalSeconds % 60).toString().padStart(2, "0"); //转换为秒
+    return `${m}:${s}`;
+  }
+  //该函数用于显示通知
+  function showStartupNotification(
+    title,
+    body,
+    silent = true,
+    autoCloseMs = 5000,
+  ) {
+    try {
+      const notice = new Notification({
+        title: title,
+        body: body,
+        silent: silent,
+      });
+      notice.show();
+      // 定时自动关闭通知，防止堆积在 Windows 通知中心（Action Center）
+      if (autoCloseMs > 0) {
+        setTimeout(() => {
+          notice.close();
+        }, autoCloseMs);
+      }
+      writeLog(
+        `[Notification] Displayed: "${title}" - "${body}" (silent: ${silent})`,
+      );
+    } catch (err) {
+      writeLog(`[Notification] Failed to show: ${err.message}`);
+    }
+  }
+  /**
+   * 过滤掉进程列表中的辅助进程（crash handler 等）
+   * @param {string[]} processList
+   * @returns {string[]}
+   */
+  function filterAuxiliaryProcesses(processList) {
+    if (processList.length <= 1) return processList; //只有一个进程就没必要过滤
+    return processList.filter((proc) => {
+      const lower = proc.toLowerCase();
+      return !EXCLUDED_PROCESS_KEYWORDS.some((kw) => lower.includes(kw));
+    });
+  }
+
+  // ========== 核心管理器 ==========
+  //状态机 监控管理器 核心逻辑
+  const MonitoringManager = {
+    //创建一个单例
+    targetProcesses: [],
+    monitorIntervalId: null, //监控状态
+    graceCheckIntervalId: null, //宽限期id
+    countdownIntervalId: null, //倒计时id
+    _startDebounceTimer: null, //是否正在监控
+    _generation: 0, //防止重复
+    _checkTicket: 0,
+    waitingCheckIntervalId: null, //等待期id
+    /**
+     * @param {string[]} processList
+     */
+    start: async function (processList) {
+      if (this._startDebounceTimer) {
+        //增加防抖
+        writeLog(
+          "[Monitor] Already starting. Ignoring duplicate start command.",
+        );
+        return;
+      }
+      this._startDebounceTimer = setTimeout(() => {
+        this._startDebounceTimer = null;
+      }, 2000);
+      //过滤掉辅助进程
+      writeLog(`[Monitor] Raw process list: ${processList.join(",")}`);
+      processList = filterAuxiliaryProcesses(processList);
+      writeLog(`[Monitor] Filtered process list: ${processList.join(",")}`);
+      this.stop(false); //清理掉所有定时器
+      if (!processList || processList.length === 0) {
+        //如果ProcessList是空的就返回
+        showStartupNotification("获取游戏进程失败", "无法启动自动暂停", false);
+        writeLog("[Monitor] Process list is empty. Monitoring aborted.");
+        return;
+      }
+      this.targetProcesses = processList;
+      writeLog(`[Monitor] Set target processes to: ${this.targetProcesses}`);
+      //检查初始状态
+      const isProcessRunning = await this._checkProcessExists();
+      if (this.targetProcesses.length === 0) { //如果在检查过程中被清空了就直接返回防止出现异常
+        writeLog("[Monitor] Target processes cleared during check. Aborting.");
+        return;
+      }
+
+
+      if (isProcessRunning) {
+        //如果进程正在运行
+        writeLog(
+          "[Monitor] Game is already running. Entering active monitoring state.",
+        );
+        this._enterActiveMonitoringState();
+      } else {
+        writeLog("[Monitor] Game is not running. Entering waiting state.");
+        this._enterWaitingState();
+      }
+    },
+    stop: function (clearList = true) {
+      writeLog("[Monitor] Stop command received. Clearing all timers.");
+      //清理掉所有定时器
+      if (this.monitorIntervalId) clearInterval(this.monitorIntervalId);
+      if (this.graceCheckIntervalId) clearInterval(this.graceCheckIntervalId);
+      if (this.countdownIntervalId) clearInterval(this.countdownIntervalId);
+      if (this.waitingCheckIntervalId)
+        clearInterval(this.waitingCheckIntervalId);
+      if (clearList) {
+        updateUiState("IDLE");
+        this._generation++;
+        this.targetProcesses = [];
+        if (this._startDebounceTimer) {//为了防止某些神人用户来玩极限操作 
+          clearTimeout(this._startDebounceTimer);
+          this._startDebounceTimer = null;
+        }
+      }
+      this.monitorIntervalId = null;
+      this.graceCheckIntervalId = null;
+      this.countdownIntervalId = null;
+      this.waitingCheckIntervalId = null;
+    },
+    _enterWaitingState() {
+      //等待游戏启动状态
+      updateUiState("WAITING");
+      showStartupNotification(
+        "等待启动游戏中",
+        `等待启动游戏中,${TIME_TEXT_MAP[GLOBAL_STARTUP_WAIT_TIME]}后未启动将会暂停加速。`,
+      );
+      const endTime = Date.now() + GLOBAL_STARTUP_WAIT_TIME;
+      this.countdownIntervalId = setInterval(async () => {
+        const remainingTime = endTime - Date.now();
+        //判断时间是否到了，到了就进入下一个状态
+        if (remainingTime <= 0) {
+          writeLog("[Monitor] Startup wait timed out. Game did not start.");
+          this.stop(false);
+          try {
+            //时间到了还没有就退出状态机
+            showStartupNotification(
+              "启动等待超时",
+              "未检测到游戏运行，已自动暂停加速",
+              false,
+              0,
+            );
+            await mainWindow.webContents.executeJavaScript(
+              'window.leigodSimplify.invoke("stop-acc",{"reason": "other"})',
+            );
+            await mainWindow.webContents.executeJavaScript(
+              'window.leigodSimplify.invoke("pause-user-time")',
+            );
+          } catch (e) {
+            writeLog(`[Monitor] ERROR: ${e}`);
+          }
+          return;
+        }
+      }, 1000);
+
+      const checkTime = GLOBAL_CHECK_MODE === "tasklist" ? 5000 : 1000;
+      this.waitingCheckIntervalId = setInterval(() => {
+        this._checkProcessExists().then((isProcessRunning) => {
+          if (isProcessRunning) {
+            writeLog(
+              "[Monitor] Game has started during waiting period. Switching to active monitoring state.",
+            );
+            this.stop(false);
+            this._enterActiveMonitoringState();
+          }
+        });
+      }, checkTime);
+      writeLog("[Monitor] Waiting period started.");
+    },
+    _checkProcessExists() {
+      return new Promise((resolve) => {
+        if (this.targetProcesses.length === 0) {
+          resolve(false);
+          return;
+        }
+        if (GLOBAL_CHECK_MODE === "tasklist") {
+          this._checkTicket++;
+          const myTicket = this._checkTicket;
+          execFile(
+            "tasklist.exe",
+            ["/FO", "CSV", "/NH"],
+            { windowsHide: true },
+            (error, stdout) => {
+              if (myTicket !== this._checkTicket) {
+                writeLog("[Monitor] Tasklist check result is stale. Ignoring.");
+                return;
+              }
+              if (error) {
+                writeLog(`[Monitor] Tasklist command failed: ${error.message}`);
+                resolve(false);
+                return;
+              }
+              const output = stdout.toLowerCase(); //拿到输出结果
+              for (let target of this.targetProcesses) {
+                //遍历进程列表
+                target = target.trim(); //去除空格
+                if (!target) continue; //如果进程名是空的就跳过
+                if (output.includes(`"${target.toLowerCase()}"`)) {
+                  //判断进程是否存在
+                  resolve(true); //返回真
+                  return;
+                }
+              }
+              resolve(false);
+            },
+          );
+        } else {
+          try {
+            // 遍历所有需要监控的游戏进程名
+            for (let target of this.targetProcesses) {
+              target = target.trim();
+              if (!target) continue;
+              //直接雷神暴露的 API，第二个参数为什么是空你问我我也不知道
+              const isRunning = win32Addon.isProcessRunning(target, "");
+              if (isRunning) {
+                // 只要查到一个在跑，立刻判定为游戏运行中
+                resolve(true);
+                return;
+              }
+            }
+            // 如果全扫完了都没在跑
+            resolve(false);
+          } catch (error) {
+            writeLog(`[Monitor]API call failed: ${error.message}`);
+            //如果报错了，默认返回 false
+            resolve(false);
+          }
+        }
+      });
+    },
+
+    _enterActiveMonitoringState() {
+      //设置轮询检查进程是否运行
+      updateUiState("ACTIVE");
+      const intervalTime = GLOBAL_CHECK_MODE === "tasklist" ? 10000 : 2000; //如果是tasklist的话就10秒一次，否则就2秒一次
+      this.monitorIntervalId = setInterval(() => {
+        this._checkProcessExists().then((isProcessRunning) => {
+          if (!isProcessRunning) {
+            //如果程序没有运行进入宽恕期
+            writeLog(
+              "[Monitor] Game process has exited. Switching from active monitoring to grace period.",
+            );
+            this.stop(false);
+            this._enterGracePeriodState();
+          }
+        });
+      }, intervalTime);
+      writeLog("[Monitor] Active monitoring started.");
+    },
+
+    _enterGracePeriodState() {
+      const timeText = TIME_TEXT_MAP[GLOBAL_GRACE_TIME] || "设定的时间";
+      showStartupNotification(
+        "进入等待期",
+        `程序进入等待期${timeText}后会将会暂停加速`,
+        false,
+      );
+      const startTime = Date.now(); //等待期开始时间
+      const endTime = startTime + GLOBAL_GRACE_TIME; //等待期结束时间
+      let lastTimeStr = "";
+      updateUiState("COUNTING", `⏳ ${formatTime(GLOBAL_GRACE_TIME)}`);
+      //看起来还需要一个定时器来自动刷新时间
+      this.countdownIntervalId = setInterval(async () => {
+        const remainingTime = endTime - Date.now();
+        if (remainingTime <= 0) {
+          //如果时间小于0就执行暂停加速然后最后一次判断有没有目标进程，如果有就进入活动期
+          this.stop(false); //先停止定时器
+          writeLog("[Monitor] Countdown finished. Performing final check..."); //做最后一次检查
+          this._checkProcessExists().then(async (isProcessRunning) => {
+            if (isProcessRunning) {
+              writeLog(
+                "[Monitor] Game has started during grace period. Switching to active monitoring state.",
+              );
+              this._enterActiveMonitoringState();
+            } else {
+              //确定没有运行就真正处理暂停
+              this.stop(true);
+              writeLog(
+                "[Monitor] grace period ended. Game did not start. Pausing acceleration.",
+              );
+              if (mainWindow) {
+                try {
+                  showStartupNotification(
+                    "等待期已过",
+                    "正在暂停加速器",
+                    false,
+                    0,
+                  ); //这里设置成为无需关闭的原因是因为用户可能不在电脑前回来后需要在通知栏看到"你的加速已被暂停"，而其他的通知（比如加载成功）都是即时性的，看一眼就够了。
+                  await mainWindow.webContents.executeJavaScript(
+                    'window.leigodSimplify.invoke("stop-acc",{"reason": "other"})',
+                  );
+                  await mainWindow.webContents.executeJavaScript(
+                    'window.leigodSimplify.invoke("pause-user-time")',
+                  );
+                } catch (e) {
+                  writeLog(
+                    `[Monitor] ERROR: Failed to execute JS for pausing. Error: ${e}`,
+                  );
+                }
+              } else {
+                writeLog(
+                  "[Monitor] ERROR: Could not find main window to pause acceleration.",
+                );
+              }
+            }
+          });
+        } else {
+          //这样设计是为了防止出现9:55 直接跳到了 9:53了 而没有9:54 这种情况 。
+          //大概就是记录当前时间和上一次更新的时间，如果不一样才更新
+          const currentTime = formatTime(remainingTime);
+          if (currentTime !== lastTimeStr) {
+            updateUiState("COUNTING", `⏳ ${currentTime}`);
+            lastTimeStr = currentTime;
+          }
+        }
+      }, 500);
+
+      //设置轮询检查游戏是否重新启动 启动的话就进入_enterActiveMonitoringState
+      const graceCheckTime = GLOBAL_CHECK_MODE === "tasklist" ? 5000 : 1000;
+      this.graceCheckIntervalId = setInterval(() => {
+        //检查一次如果启动了就吧宽恕期的定时器处理掉然后重新加入活动模式
+        this._checkProcessExists().then((isProcessRunning) => {
+          if (isProcessRunning) {
+            writeLog(
+              "[Monitor] Game has started during grace period. Switching to active monitoring state.",
+            );
+            this.stop(false);
+            this._enterActiveMonitoringState();
+          }
+        });
+      }, graceCheckTime);
+      writeLog("[Monitor] Grace period started.");
+    },
+  };
+
+  // ========== IPC拦截相关函数 ==========
+  //该函数用于获得token为后续关机做准备
+  function interceptedLogin(listener) {
+    // --- 拦截 leigod-simplify-login ---
+    return async (event, ...arg) => {
+      const result = await listener(event, ...arg);
+      try {
+        if (result && result.result && result.result.account_token) {
+          //拿到token
+          GLOBAL_USER_TOKEN = result.result.account_token;
+          writeLog(
+            `[Token] Successfully obtained token. The token is ${GLOBAL_USER_TOKEN.substring(
+              0,
+              10,
+            )}...`,
+          );
+        } else {
+          writeLog(
+            `[Token] Failed to obtain token : \n${JSON.stringify(
+              result,
+              null,
+              2,
+            )}.`,
+          );
+        }
+      } catch (e) {
+        writeLog(`[Token] ERROR: Failed to extract token. Error: ${e}`);
+      }
+      return result;
+    };
+  }
+  //该函数用于拦截start-acc为后续做准备自动暂停准备
+  function interceptedStartAcc(listener) {
+    // --- 拦截 start-acc ---
+    return async (event, ...args) => {
+      const gameInfoArg = args[0]; //获取参数
+      writeLog(
+        `[patchIpcMain] "start-acc" intercepted!\nInitial Data:\n${JSON.stringify(
+          gameInfoArg,
+          null,
+          2,
+        )}`,
+      );
+      const gen = MonitoringManager._generation;
+      const result = await listener(event, ...args);
+      writeLog(
+        ` [patchIpcMain] "result" intercepted!\nInitial Data:\n${JSON.stringify(
+          result,
+          null,
+          2,
+        )}`,
+      );
+
+      if (result && result.error && result.error.message.code === 10007) {
+        return result;
+      }
+      if (gen !== MonitoringManager._generation) {
+        writeLog(
+          //防止有神人在加速器在拉取信息的时候突然点击暂停
+          "[interceptedStartAcc] Generation changed. Ignoring this result.",
+        );
+        return result;
+      }
+
+      if (result && result.result.code === 200) {
+        writeLog(
+          "[interceptedStartAcc] Acceleration seems successful. Now fetching game info...",
+        );
+        handleGameProcessMonitoring(mainWindow, gameInfoArg);
+      } else {
+        writeLog(
+          `[interceptedStartAcc] Acceleration did not start successfully. Aborting.`,
+        );
+      }
+      return result;
+    };
+  }
+  //该函数用于拦截stop-acc
+  function interceptedStopAcc(listener, channel) {
+    return async (event, ...args) => {
+      writeLog(`[interceptedStopAcc] "${channel}" intercepted.`);
+      if (channel === "leigod-simplify-pause-user-time") {
+        MonitoringManager.stop(true);
+        writeLog(`[patchIpcMain] "${channel}" intercepted. Stopping Monitor.`);
+      } else {
+        writeLog(
+          `[patchIpcMain] "${channel}" intercepted. Keeping Monitor alive.`,
+        );
+      }
+
+      return listener(event, ...args);
+    };
+  }
+  function interceptedOpenExternal(listener) {
+    return async (event, ...args) => {
+      //偷偷在External里拦截做通讯
+      const url = args[0];
+      if (!url || typeof url !== "string") {
+        return await listener(event, ...args);
+      }
+      const baseUrl = url.split("?")[0];
+      switch (baseUrl) {
+        case "leigod-plugin://interrupt":
+          writeLog(
+            "[interceptedOpenExternal] Intercepted interrupt command via open-external!",
+          );
+          MonitoringManager.stop(true);
+          updateUiState("missing");
+          return;
+
+        case "leigod-plugin://set-time":
+          try {
+            const urlObj = new URL(url); //拿到url进行
+            const ms = Number(urlObj.searchParams.get("ms"));
+            if (ms && TIME_TEXT_MAP[ms]) {
+              writeLog(
+                `[interceptedOpenExternal] Grace time updated to ${ms}ms by user.`,
+              );
+              GLOBAL_GRACE_TIME = ms;
+              showStartupNotification(
+                "设置已保存",
+                `自动暂停等待时间已修改为 ${TIME_TEXT_MAP[ms]}`,
+                true,
+                3000,
+              );
+            } else {
+              writeLog(
+                `[interceptedOpenExternal] Invalid time setting attempt: ${url}`,
+              );
+            }
+          } catch (e) {
+            writeLog(
+              `[interceptedOpenExternal] Error parsing set-time URL: ${e.message}`,
+            );
+          }
+          return;
+        case "leigod-plugin://set-mode":
+          try {
+            const urlObj = new URL(url);
+            const mode = urlObj.searchParams.get("mode");
+            if (mode === "api" || mode === "tasklist") {
+              writeLog(
+                `[interceptedOpenExternal] mode updated to ${mode} by user.`,
+              );
+              GLOBAL_CHECK_MODE = mode;
+              showStartupNotification(
+                "设置已保存",
+                `自动检测模式已修改为 ${mode}`,
+                true,
+                3000,
+              );
+            } else {
+              writeLog(
+                `[interceptedOpenExternal] Invalid mode setting attempt: ${url}`,
+              );
+            }
+          } catch (e) {
+            writeLog(
+              `[interceptedOpenExternal] Error parsing set-mode URL: ${e.message}`,
+            );
+          }
+          return;
+        case "leigod-plugin://set-startup-time":
+          try {
+            const urlObj = new URL(url);
+            const ms = Number(urlObj.searchParams.get("ms"));
+            if (ms && TIME_TEXT_MAP[ms]) {
+              writeLog(
+                `[interceptedOpenExternal] Startup wait time updated to ${TIME_TEXT_MAP[ms]} by user.`,
+              );
+              GLOBAL_STARTUP_WAIT_TIME = ms;
+              showStartupNotification(
+                "设置已保存",
+                `首次启动等待时间已修改为 ${TIME_TEXT_MAP[ms]}`,
+                true,
+                3000,
+              );
+            } else {
+              writeLog(
+                `[interceptedOpenExternal] Invalid time setting attempt: ${url}`,
+              );
+            }
+          } catch (e) {
+            writeLog(
+              `[interceptedOpenExternal] Error parsing set-time URL: ${e.message}`,
+            );
+          }
+          return;
+        case "leigod-plugin://set-processes":
+          try {
+            const urlObj = new URL(url);
+            const gameId = urlObj.searchParams.get("gameId");
+            const processText = urlObj.searchParams.get("names") || "";
+            const customProcesses = normalizeCustomProcesses(processText);
+            if (!gameId) throw new Error("Missing gameId");
+            writeLog(
+              `[interceptedOpenExternal] Custom processes for game ${gameId}: ${JSON.stringify(customProcesses)}`,
+            );
+            showStartupNotification(
+              "设置已保存",
+              customProcesses.length > 0
+                ? `开始监控 ${customProcesses.join(", ")}`
+                : "已清除该游戏的自定义进程",
+              true,
+              3000,
+            );
+            if (customProcesses.length > 0) {
+              MonitoringManager.start(customProcesses);
+            }
+          } catch (e) {
+            writeLog(
+              `[interceptedOpenExternal] Error parsing custom processes: ${e.message}`,
+            );
+          }
+          return;
+
+        default: {
+          const result = await listener(event, ...args);
+          return result;
+        }
+      }
+      // if (args[0] === "leigod-plugin://interrupt") {
+      //   writeLog(
+      //     "[interceptedOpenExternal] Intercepted interrupt command via open-external!",
+      //   );
+      //   MonitoringManager.stop(true);
+      //   updateUiState("missing");
+      //   return;
+      // }
+    };
+  }
+
+  /*function interceptedRecoverUserTime(listener, channel) {
+    return async (event, ...args) => {
+      writeLog(`[interceptedRecoverUserTime] "${channel}" intercepted.`);
+      const result = await listener(event, ...args);
+      MonitoringManager._enterGracePeriodState();
+      return result;
+    };
+  }*/
+
+  //该函数用于拦截分发
+  function hookIpcHandle(channel, listener, originalIpcMainHandle) {
+    let newListener;
+    //修改为switch 方便以后拦截多个通道
+    switch (channel) {
+      case "leigod-simplify-login":
+        newListener = interceptedLogin(listener);
+        break;
+
+      case "leigod-simplify-start-acc":
+        newListener = interceptedStartAcc(listener);
+        break;
+
+      case "leigod-simplify-stop-acc":
+      case "leigod-simplify-pause-user-time":
+        newListener = interceptedStopAcc(listener, channel);
+        break;
+      case "leigod-simplify-open-external":
+        newListener = interceptedOpenExternal(listener);
+        break;
+      // case "leigod-simplify-recover-user-time": //讲真，虽然我不认为真的会有人就解除暂停不加速游戏但是还是处理一下吧
+      //   newListener = interceptedRecoverUserTime(listener, channel);
+      //   break;
+
+      default:
+        // 不拦截其他通道，直接使用原始listener
+        return originalIpcMainHandle.call(ipcMain, channel, listener);
+    }
+    //如果是目标就修改回调改成我们的
+    return originalIpcMainHandle.call(ipcMain, channel, newListener);
+  }
+  //该函数用于拦截 IPC 通信，注入监控逻辑
+  function patchIpcMain() {
+    writeLog("[patchIpcMain] App is ready. Patching ipcMain.handle...");
+
+    const originalIpcMainHandle = ipcMain.handle; //保存原始的 ipcMain.handle 方法
+
+    ipcMain.handle = (channel, listener) => {
+      return hookIpcHandle(channel, listener, originalIpcMainHandle);
+    };
+  }
+  //该函数用于从IndexedDB中获取游戏信息
+  async function fetchFromIndexedDB(mainWindow, game_id) {
+    const QueryScript = `
+                         (async () => {
+                         const game = await (async (targetId) => {
+                        const db = await new Promise((r, x) => {
+                         const req = indexedDB.open('leigod_database_11.0.0.0');
+                         req.onsuccess = () => r(req.result);
+                         req.onerror = () => x(req.error);
+                        });
+                        return new Promise((r, x) => {
+                        const q = db.transaction('game_list', 'readonly')
+                        .objectStore('game_list')
+                        .index('id')
+                        .get(targetId);
+                        q.onsuccess = () => r(q.result);
+                        q.onerror = () => x(q.error);
+                        });
+                        })(${game_id});return game;
+                        })();`;
+    try {
+      const result =
+        await mainWindow.webContents.executeJavaScript(QueryScript);
+      writeLog(`[fetchFromIndexedDB] Game info: ${JSON.stringify(result)}`);
+      return result;
+    } catch (error) {
+      writeLog(`[fetchFromIndexedDB] Error fetching game info: ${error}`);
+      return null;
+    }
+  }
+  //该函数用于从Leigod API获取游戏信息
+  async function fetchFromLeigodAPI(mainWindow, game_id) {
+    //大概就是先调用aip如果不行再通过http获取
+    let result = null;
+    try {
+      result = await mainWindow.webContents.executeJavaScript(
+        `window.leigodSimplify.invoke("get-game-info", {game_id: ${game_id}})`,
+      );
+      writeLog(`[fetchFromLeigodAPI] Game info: ${JSON.stringify(result)}`);
+    } catch (error) {
+      writeLog(`[fetchFromLeigodAPI] Error fetching game info: ${error}`);
+    }
+    if (!Array.isArray(result)) {
+      writeLog(`[fetchFromLeigodAPI] IPC returned null, fallback to HTTP`);
+      result = await queryGameInfoByHttp(mainWindow, game_id);
+    }
+    if (!Array.isArray(result)) {
+      writeLog(`[fetchFromLeigodAPI] Api failed`);
+    }
+    return result;
+  }
+
+  //该函数用于通过HTTP获取游戏信息
+  async function queryGameInfoByHttp(mainWindow, game_id) {
+    const API_URL = "https://api2.leigod.com/client/game/area/info/nn";
+    //把要发送的结果加密
+    try {
+      const encryptData = await mainWindow.webContents.executeJavaScript(
+        `window.leigodSimplify.invoke("encrypt-data", {game_id: ${game_id}})`,
+      );
+      //发送http请求
+      let encryptresult;
+      try {
+        encryptresult = await new Promise((resolve, reject) => {
+          execFile(
+            "curl.exe",
+            ["-s", "-X", "POST", API_URL, "-d", encryptData, "-m", "8"],
+            {
+              encoding: "utf8",
+            },
+            (err, stdout) => {
+              if (err) reject(err);
+              else resolve(stdout);
+            },
+          );
+        });
+      } catch (error) {
+        writeLog(`[queryGameInfoByHttp] Error in curl command: ${error}`);
+        return null;
+      }
+      //拿到结果解密
+      let result = await mainWindow.webContents.executeJavaScript(
+        `window.leigodSimplify.invoke("decrypt-data", ${JSON.stringify(encryptresult)})`,
+      );
+      result = result?.data;
+      writeLog(`[queryGameInfoByHttp] Data: ${JSON.stringify(result)}`);
+      return result;
+    } catch (error) {
+      writeLog(`[queryGameInfoByHttp] Error: ${error}`);
+      return null;
+    }
+  }
+
+  //该函数用于获取游戏信息，同时从IndexedDB以及Leigod API中中获取，然后优先判断Leigod API中是否有进程IndexedDB作为兜底
+  async function getGameInfoStrategies(mainWindow, game_id) {
+    const [dbInfo, apiResult] = await Promise.all([
+      //同时拉取数据
+      fetchFromIndexedDB(mainWindow, game_id).catch((e) => {
+        writeLog(`[getGameInfoStrategies] DB Error: ${e}`);
+        return null;
+      }),
+      fetchFromLeigodAPI(mainWindow, game_id).catch((e) => {
+        writeLog(`[getGameInfoStrategies] API Error: ${e}`);
+        return [];
+      }),
+    ]);
+    if (dbInfo && dbInfo.is_free === "1") {
+      //如果是免费游戏就没必要拿拿进程了
+      return dbInfo;
+    }
+
+    let API_gameProcessInfo = null;
+
+    if (Array.isArray(apiResult) && apiResult.length > 0) {
+      // 找到第一个进程名不为空的 API 数据
+      API_gameProcessInfo = apiResult.find(
+        (item) => item.game_process && item.game_process.trim() !== "",
+      );
+    }
+
+    if (API_gameProcessInfo) {
+      writeLog(
+        `[getGameInfoStrategies] Using API info: ${JSON.stringify(API_gameProcessInfo)}`,
+      );
+      return API_gameProcessInfo;
+    }
+
+    //如果说api没有进程名 就用indexdb的进程名
+    if (dbInfo && dbInfo.game_process && dbInfo.game_process.trim() !== "") {
+      writeLog(
+        `[getGameInfoStrategies] API failed, fallback to IndexedDB info: ${JSON.stringify(dbInfo)}`,
+      );
+      return dbInfo;
+    }
+
+    //如果说api和indexdb都没有进程名那就都没救了
+    writeLog(
+      "[getGameInfoStrategies] No game_process found in API or DB. Aborting.",
+    );
+    return null;
+  }
+
+  //该函数用于处理游戏进程为后续监控做准备
+  async function handleGameProcessMonitoring(mainWindow, gameInfoArg) {
+    if (!mainWindow || !gameInfoArg || !gameInfoArg.game_id) {
+      // 检查窗口和参数
+      return;
+    }
+    let gameProcessList = [];
+    try {
+      GLOBAL_CURRENT_GAME_ID = gameInfoArg.game_id;
+      GLOBAL_CURRENT_GAME_NAME = gameInfoArg.game_name || "";
+      if (ExcludedGameIDs.includes(gameInfoArg.game_id)) { //如果是排除项目就直接返回
+        showStartupNotification(
+          "自动暂停已跳过",
+          "检测到当前加速项属于平台或免费项，自动暂停功能已跳过，请务必留意加速时长。",
+          false,
+        );
+        writeLog(
+          `[GameMonitoring] Game ID ${gameInfoArg.game_id} is in the exclusion list. ignored.`,
+        );
+        return;
+      }
+      //  获取游戏信息，用于判断是否免费
+      let GameInfo = await getGameInfoStrategies(
+        mainWindow,
+        gameInfoArg.game_id,
+      );
+      if (GameInfo && GameInfo.is_free === "1") { //如果是免费加速项就直接返回
+        showStartupNotification(
+          "自动暂停已跳过",
+          "检测到当前加速项属于平台或免费项，自动暂停功能已跳过，请务必留意加速时长。",
+          false,
+        );
+        writeLog(
+          `[GameMonitoring] Game ID ${gameInfoArg.game_id} is a free acceleration item. ignored.`,
+        );
+        return;
+      }
+      //如果是不是免费项目，优先检查社区游戏数据库
+      if (CommunityGameDB[String(gameInfoArg.game_id)]) {
+        //先检查社区游戏数据库，防止雷神数据库中的进程名有假（我服了，雷神的进程库还有假的进程名，这个和写假注释一样可恶！他猫猫的）
+        gameProcessList = parseGameProcess(
+          CommunityGameDB[String(gameInfoArg.game_id)],
+        );
+        writeLog(
+          `[GameMonitoring] Parsed CommunityGameDB processes: ${JSON.stringify(
+            gameProcessList,
+          )}`,
+        );
+        MonitoringManager.start(gameProcessList);
+        return;
+      }
+      //如果GameInfo 不为空
+      if (
+        !GameInfo ||
+        !GameInfo.game_process ||
+        GameInfo.game_process.trim() === ""
+      ) {
+        const savedCustomProcesses =
+          await mainWindow.webContents.executeJavaScript(
+            `(() => { try { return JSON.parse(localStorage.getItem("leigod_custom_process_map") || "{}")[${JSON.stringify(String(gameInfoArg.game_id))}] || []; } catch { return []; } })()`,
+          );
+        if (savedCustomProcesses.length > 0) {
+          writeLog(
+            `[GameMonitoring] Automatic detection failed; using saved custom processes for game ${gameInfoArg.game_id}: ${JSON.stringify(savedCustomProcesses)}`,
+          );
+          MonitoringManager.start([...savedCustomProcesses]);
+          return;
+        }
+        showStartupNotification(
+          "获取游戏进程失败",
+          "目标game_process字段中无法获取游戏名称,点击顶部状态栏“🔗 提交进程”进行反馈提交。",
+          false,
+        );
+        writeLog(
+          `[GameMonitoring] No game_process found. Aborting monitoring.`,
+        );
+        MonitoringManager.stop(true);
+        updateUiState("MISSING");
+        return;
+      }
+      gameProcessList = parseGameProcess(GameInfo.game_process);
+      writeLog(
+        `[GameMonitoring] Parsed game processes: ${JSON.stringify(
+          gameProcessList,
+        )}`,
+      );
+      MonitoringManager.start(gameProcessList);
+      return;
+    } catch (e) {
+      writeLog(`[handleGameProcessMonitoring] ERROR: ${e}`);
+    }
+  }
+
+  // ========== UI注入相关函数 ==========
+  //该函数用于注入状态组件
+  function injectStatusWidget() {
+    let mainWindowCaptured = false;
+    app.on("browser-window-created", (event, window) => {
+      writeLog("[Monitor] enter browser-window-created ...");
+      try {
+        window.webContents.on("did-finish-load", async () => {
+          const target = window.webContents.getURL();
+          if (target && target.includes("renderer.asar/index.html")) {
+            if (mainWindowCaptured) return; //防止后续有新的窗口弹出覆盖掉这个mainwindow
+            writeLog("[Monitor] Injecting UI widget...");
+            mainWindow = window; //拿到主窗口后续用于执行js
+            // 注入状态组件以及获取游戏进程
+            mainWindowCaptured = true;
+            writeLog("[Monitor] Main Window registered.");
+            patchMainWindowClose(); // mainWindow 就绪后立即挂载关闭/关机拦截
+            if (DevMode) {
+              window.webContents.openDevTools({ mode: "detach" }); //调试
+            }
+            //拿到用户自定义以及第一次启动的时间以及模式
+            try {
+              //拿到开启加速时需要等待的时间
+              const savedStartupTime =
+                await mainWindow.webContents.executeJavaScript(
+                  "localStorage.getItem('leigod_startup_time')",
+                );
+              const parsedStartupTime = Number(savedStartupTime);
+              if (parsedStartupTime && TIME_TEXT_MAP[parsedStartupTime]) {
+                GLOBAL_STARTUP_WAIT_TIME = parsedStartupTime;
+                writeLog(
+                  `[Monitor] Synced startup time from frontend: ${GLOBAL_STARTUP_WAIT_TIME}ms`,
+                );
+              } else {
+                GLOBAL_STARTUP_WAIT_TIME = 180000; //兜底3分钟
+                writeLog(
+                  `[Monitor] No valid saved time found, keeping default 3 mins.`,
+                );
+              }
+              //先拿到时间
+              const savedTime = await mainWindow.webContents.executeJavaScript(
+                "localStorage.getItem('leigod_grace_time')",
+              );
+
+              const parsedTime = Number(savedTime);
+              if (parsedTime && TIME_TEXT_MAP[parsedTime]) {
+                GLOBAL_GRACE_TIME = parsedTime;
+                writeLog(
+                  `[Monitor] Synced grace time from frontend: ${GLOBAL_GRACE_TIME}ms`,
+                );
+              } else {
+                // 如果没有保存过或者数据非法，强制设为 10 分钟兜底
+                GLOBAL_GRACE_TIME = 600000;
+                writeLog(
+                  "[Monitor] No valid saved time found, keeping default 10 mins.",
+                );
+              }
+              //再拿到检测模式 //下次给这一块给封装成函数（如果有机会的话）
+              const savedMode = await mainWindow.webContents.executeJavaScript(
+                "localStorage.getItem('leigod_check_mode')",
+              );
+              if (savedMode) {
+                GLOBAL_CHECK_MODE = savedMode;
+                writeLog(
+                  `[Monitor] Synced check mode from frontend: ${GLOBAL_CHECK_MODE}`,
+                );
+              } else {
+                GLOBAL_CHECK_MODE = "api";
+                writeLog(
+                  `[Monitor] No valid check mode found, keeping default api.`,
+                );
+              }
+            } catch (err) {
+              writeLog(`[Monitor] Sync time error: ${err.message}`);
+            }
+           (async function showSourceNotice() {
+    try {
+      if (!mainWindow) return;
+       const NOTICE_KEY = "leigod_notice_seen";
+  const NOTICE_ID  = "2026-11-07-gitee";
+    const NOTICE_GITEE_URL = "https://gitee.com/assortest/Leigod_Auto_Pause";
+ 
+      const seen = await mainWindow.webContents.executeJavaScript(
+        "localStorage.getItem(" + JSON.stringify(NOTICE_KEY) + ")",
+      );
+      if (seen === NOTICE_ID) return;
+
+       const noticeHtml = [
+        '<div style="background:#2b2b2b;color:#fff;width:420px;max-width:calc(100vw - 40px);padding:22px 24px;box-sizing:border-box;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.5);font-family:\'Microsoft YaHei\',sans-serif;">',
+        '<h3 style="margin:0 0 14px;font-size:16px;font-weight:400;color:#ff9800;">更新源暂时切到 Gitee</h3>',
+        '<p style="margin:0 0 10px;font-size:13px;line-height:1.75;color:#ddd;">',
+        '我的 GitHub 账号目前被 <b style="color:#ff9800;font-weight:400;">Suspended</b>（停用），暂时无法通过原账号继续更新和维护项目。',
+        "</p>",
+        '<p style="margin:0 0 10px;font-size:13px;line-height:1.75;color:#ddd;">',
+        "目前正在向 GitHub 申诉，等待后续处理结果。",
+        "</p>",
+        '<p style="margin:0 0 10px;font-size:13px;line-height:1.75;color:#ddd;">',
+        "这期间项目会在 Gitee 上更新，请前往下方地址获取最新版本(新版现以支持雷神11.3.3.1以上版本)：",
+        "</p>",
+        '<div style="margin:0 0 16px;padding:8px 10px;background:#1f1f1f;border:1px solid #3a3a3a;border-radius:4px;font-size:12px;line-height:1.5;color:#7fb8e6;font-family:Consolas,monospace;word-break:break-all;user-select:text;">' +
+          NOTICE_GITEE_URL +
+          "</div>",
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid #3a3a3a;padding-top:14px;">',
+        '<span style="font-size:11px;color:#777;white-space:nowrap;">2026-11-07 · 仅提示一次</span>',
+        '<div style="display:flex;gap:10px;flex-shrink:0;">',
+        '<button id="leigod-notice-gitee" style="background:transparent;border:1px solid #555;color:#bbb;padding:7px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-family:inherit;">前往 Gitee</button>',
+        '<button id="leigod-notice-ok" style="background:#2196f3;border:none;color:#fff;padding:7px 18px;border-radius:4px;cursor:pointer;font-size:12px;font-family:inherit;">知道了</button>',
+        "</div>",
+        "</div>",
+        "</div>",
+      ].join("");
+
+      await mainWindow.webContents.executeJavaScript(
+        `(() => {
+          if (document.getElementById("leigod-source-notice")) return;
+
+          const mask = document.createElement("div");
+          mask.id = "leigod-source-notice";
+          mask.style.cssText =
+            "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;" +
+            "display:flex;align-items:center;justify-content:center;";
+          mask.innerHTML = ${JSON.stringify(noticeHtml)};
+
+          const onEsc = (e) => {
+            if (e.key === "Escape") close();
+          };
+          const close = () => {
+            document.removeEventListener("keydown", onEsc);
+            try {
+              localStorage.setItem(${JSON.stringify(NOTICE_KEY)}, ${JSON.stringify(NOTICE_ID)});
+            } catch (e) {}
+            mask.remove();
+          };
+
+          mask.querySelector("#leigod-notice-ok").onclick = close;
+               mask.querySelector("#leigod-notice-gitee").onclick = () => {
+            try {
+              window.leigodSimplify.invoke(
+                "open-external",
+                ${JSON.stringify(NOTICE_GITEE_URL)},
+              );
+            } catch (e) {
+              console.error("[Notice] open external failed:", e);
+            }
+          };
+          mask.addEventListener("click", (e) => {
+            if (e.target === mask) close();
+          });
+          document.addEventListener("keydown", onEsc);
+
+          document.body.appendChild(mask);
+        })()`,
+      );
+
+      writeLog("[Notice] source notice displayed.");
+    } catch (e) {
+      writeLog("[Notice] failed: " + e.message);
+    }
+  })()
+            const script = `const timer = setInterval(() => {
+  const navControl = document.querySelector(".nav-control");
+  const redpackWrap = document.querySelector(".redpack-wrap");
+  if (navControl && redpackWrap) {
+    clearInterval(timer);
+      if (!document.getElementById("leigod-anti-wrap-style")) {
+    const stylePatch = document.createElement("style");
+    stylePatch.id = "leigod-anti-wrap-style";
+    stylePatch.innerHTML = \`
+      .time-button {
+              white-space: nowrap !important; 
+              flex-shrink: 0 !important;
+              min-width: fit-content !important; 
+          }   
+      .recharge-text{
+            white-space: nowrap !important; 
+            flex-shrink: 0 !important;
+            min-width: fit-content !important; 
+        }  
+          .time-format-view {
+              flex-wrap: nowrap !important; 
+              flex-shrink: 0 !important;
+          }
+          .page-back { /*我要死了，为了处理这些样式 */
+              white-space: nowrap !important; 
+              flex-shrink: 0 !important;
+          }
+    \`;
+    document.head.appendChild(stylePatch);
+}
+    if (document.getElementById("leigod-monitor-Widget")) return;
+    const div = document.createElement("div");
+    div.id = "leigod-monitor-Widget";
+    div.style.cssText = \`
+      position: relative; 
+      z-index: 9999;
+      height: 24px; 
+      min-width: 90px; 
+      flex-shrink: 0; 
+      white-space: nowrap; 
+      background: rgba(255,255,255,0.1); 
+      border-radius: 12px; 
+      display: inline-flex; 
+      align-items: center; 
+      justify-content: center; 
+      cursor: pointer; 
+      color: #a4a4a4; 
+      font-size: 12px; 
+      font-family: 'Microsoft YaHei'; 
+      -webkit-app-region: no-drag; 
+      transition: all 0.2s; 
+      padding: 0 5px; 
+      font-feature-settings: 'tnum';
+      user-select: none;
+      margin-left: 5px;  
+      margin-right: 25px; 
+    \`;
+    div.dataset.state = "idle";
+    div.innerHTML = '<span id="leigod-status-text">⚙️ 自动监控</span>';
+    div.onmouseenter = () => {
+      if (div.dataset.state === "missing") {
+        div.style.background = "rgba(33, 150, 243, 0.4)";
+        div.style.color = "#1a75c2";
+      }
+    };
+    div.onmouseleave = () => {
+      if (div.dataset.state === "missing") {
+        div.style.background = "rgba(33, 150, 243, 0.1)";
+        div.style.color = "#2196f3";
+      }
+    };
+    div.onclick = () => {
+      if (div.dataset.state === "missing") {
+        const gameId = div.dataset.gameId;
+        const gameName = div.dataset.gameName || "";
+        if (!gameId) return;
+        let processMap = {};
+        try {
+          processMap = JSON.parse(
+            localStorage.getItem("leigod_custom_process_map") || "{}",
+          );
+        } catch {}
+        const modal = document.createElement("div");
+        modal.id = "leigod-process-modal";
+        modal.style.cssText = \`position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,.6);z-index:99999;display:flex;justify-content:center;align-items:center;\`;
+        modal.innerHTML = \`<div style="background:#2b2b2b;padding:20px 30px;border-radius:8px;color:#fff;width:380px;box-sizing:border-box;box-shadow:0 4px 12px rgba(0,0,0,.5);">
+          <h3 style="margin:0 0 10px;color:#2196f3;font-size:16px;font-weight:normal;">设置当前游戏的进程名</h3>
+          <p style="font-size:12px;color:#aaa;line-height:1.6;">请从任务管理器“详细信息”页复制游戏主程序名称。支持多个进程，以逗号、分号或换行分隔。</p>
+          <textarea id="leigod-custom-processes" rows="4" placeholder="Game.exe, Launcher.exe" style="width:100%;box-sizing:border-box;resize:vertical;background:#1f1f1f;border:1px solid #555;border-radius:4px;color:#fff;padding:8px;font-size:13px;"></textarea>
+          <div style="display:flex;gap:12px;margin-top:12px;"><button id="leigod-process-cancel" style="flex:1;background:#444;border:none;color:#ccc;padding:8px;border-radius:4px;cursor:pointer;">取消</button><button id="leigod-process-save" style="flex:1;background:#2196f3;border:none;color:#fff;padding:8px;border-radius:4px;cursor:pointer;">保存并开始监控</button></div>
+          <button id="leigod-process-report" style="width:100%;margin-top:10px;background:transparent;border:1px solid #666;color:#aaa;padding:7px;border-radius:4px;cursor:pointer;">前往 GitHub 提交进程信息</button>
+        </div>\`;
+        document.body.appendChild(modal);
+        const input = modal.querySelector("#leigod-custom-processes");
+        input.value = Array.isArray(processMap[gameId])
+          ? processMap[gameId].join(", ")
+          : "";
+        input.focus();
+        modal.querySelector("#leigod-process-cancel").onclick = () =>
+          modal.remove();
+        modal.onclick = (e) => {
+          if (e.target === modal) modal.remove();
+        };
+        modal.querySelector("#leigod-process-save").onclick = () => {
+          const names = input.value.trim();
+          if (!names) {
+            input.focus();
+            return;
+          }
+          const normalized = [
+            ...new Set(
+              names
+                .split(/[,;\\n\\r，；]+/)
+                .map((p) => p.trim())
+                .filter(Boolean),
+            ),
+          ];
+          processMap[gameId] = normalized;
+          localStorage.setItem(
+            "leigod_custom_process_map",
+            JSON.stringify(processMap),
+          );
+          window.leigodSimplify.invoke(
+            "open-external",
+            "leigod-plugin://set-processes?gameId=" +
+              encodeURIComponent(gameId) +
+              "&names=" +
+              encodeURIComponent(names),
+          );
+          modal.remove();
+        };
+        modal.querySelector("#leigod-process-report").onclick = () => {
+          const names = input.value.trim() || "请填写实际进程名.exe";
+          const issueTitle =
+            "[游戏进程补充] " + (gameName || "game_id " + gameId);
+          const issueBody =
+            "游戏名称：" +
+            (gameName || "未知") +
+            "\\n游戏 ID：" +
+            gameId +
+            "\\n实际进程名：" +
+            names +
+            "\\n\\n该游戏无法通过雷神 API 或本地数据库自动识别进程。";
+          window.leigodSimplify.invoke(
+            "open-external",
+            "https://github.com/assortest/Leigod_Auto_Pause/issues/new?title=" +
+              encodeURIComponent(issueTitle) +
+              "&body=" +
+              encodeURIComponent(issueBody),
+          );
+        };
+      } else if (div.dataset.state === "counting" || div.dataset.state === "waiting") {
+        const modal = document.createElement("div");
+        modal.id = "leigod-confirm-modal";
+        modal.style.cssText = \`position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 99999;
+    display: flex;
+    justify-content: center;
+    align-items: center;\`;
+        modal.innerHTML = \`<div
+  style="
+    background: #2b2b2b;
+    padding: 20px 30px;
+    border-radius: 8px;
+    color: #fff;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  "
+>
+<h3 style="margin: 0 0 10px 0; font-size: 16px; font-weight: normal; color: #ff9800;">确认暂停倒计时？</h3>
+<p style="font-size: 13px; color: #aaa; margin: 0 0 20px 0; line-height: 1.5; text-align: left;">
+                  如果您在游戏中但是倒计时仍在进行，则说明 API 提供的进程名不准确。<br>
+                  点击确认暂停，再点击提交进程可以提交真实的进程名以优化数据库。
+              </p>
+              <div style="display: flex;         
+justify-content: space-around;" >
+<button id="leigod-btn-cancel"
+ style="background:#444;
+ border:none; 
+ color:#ccc;
+ padding:6px 20px;
+ border-radius: 4px; 
+ cursor: pointer;
+ "
+ >我只是误触了</button>
+<button id="leigod-btn-confirm"
+style="background:#ff9800;
+ border:none; 
+ color:#fff;
+ padding:6px 20px;
+ border-radius: 4px; 
+ cursor: pointer;
+ " >确认暂停</button>
+</div>
+</div>
+\`;
+        document.body.appendChild(modal); //把内容插入
+        //开始处理按键响应
+        document.getElementById("leigod-btn-cancel").onclick = () => {
+          modal.remove();
+        };
+        document.getElementById("leigod-btn-confirm").onclick = () => {
+          modal.remove();
+          leigodSimplify.invoke("open-external", "leigod-plugin://interrupt");
+        };
+      } else if (div.dataset.state === "idle") {//这里处理用户自定义时间
+        const currentStartupTime = localStorage.getItem("leigod_startup_time") || "180000";
+        const currentGraceTime = localStorage.getItem("leigod_grace_time") || "600000"; //获取时间，如果没有就使用默认的
+        const currentMode = localStorage.getItem("leigod_check_mode") || "api"; //获取检测模式，如果没有就使用默认的
+        //设置名字和遮罩
+       const modal = document.createElement("div");
+        modal.id = "leigod-time-modal";
+        modal.style.cssText = \`position: fixed; 
+        top: 0; left: 0; width: 100vw; 
+        height: 100vh; 
+        background-color: rgba(0, 0, 0, 0.6);
+         z-index: 99999; display: flex; 
+         justify-content: center; 
+         align-items: center;\`;
+        //时间选择按钮
+          const startupOptions = [
+          { label: "15秒", value: "15000" },
+          { label: "30秒", value: "30000" },
+          { label: "1分钟", value: "60000" },
+          { label: "3分钟", value: "180000" },
+          { label: "5分钟", value: "300000" },
+          { label: "10分钟", value: "600000" },
+          { label: "15分钟", value: "900000" },
+        ];
+        const graceOptions = [
+          { label: "立即暂停", value: "100" },
+          { label: "15秒", value: "15000" },
+          { label: "30秒", value: "30000" },
+          { label: "1分钟", value: "60000" },
+          { label: "5分钟", value: "300000" },
+          { label: "10分钟", value: "600000" },
+          { label: "15分钟", value: "900000" },
+        ];
+
+        // 动态生成按钮 HTML
+
+        let startupBtnsHtml = "";
+        startupOptions.forEach((opt) => {
+          const isSelected = (opt.value === currentStartupTime);
+          const bg = isSelected ? "#ff9800" : "#444"; // 选中的亮橙色，未选中的暗灰色
+          const color = isSelected ? "#fff" : "#ccc";
+          startupBtnsHtml +=
+            '<button class="leigod-startup-btn" data-ms="' +
+            opt.value +
+            '" style="background:' +
+            bg +
+            '; border:none; color:' +
+            color +
+            '; padding:8px 0; border-radius: 4px; cursor: pointer; font-size: 13px; font-family: Microsoft YaHei; transition: all 0.2s;">' +
+            opt.label +
+            '</button>';
+        });        
+
+
+        let graceBtnsHtml = "";
+        graceOptions.forEach((opt) => {
+          const isSelected = (opt.value === currentGraceTime);
+          const bg = isSelected ? "#ff9800" : "#444"; // 选中的亮橙色，未选中的暗灰色
+          const color = isSelected ? "#fff" : "#ccc";
+          graceBtnsHtml +=
+            '<button class="leigod-grace-btn" data-ms="' +
+            opt.value +
+            '" style="background:' +
+            bg +
+            '; border:none; color:' +
+            color +
+            '; padding:8px 0; border-radius: 4px; cursor: pointer; font-size: 13px; font-family: Microsoft YaHei; transition: all 0.2s;">' +
+            opt.label +
+            '</button>';
+        });
+
+
+        // 生成检测模式的按钮组
+        const modeOptions = [
+          { label: "原生 API (默认)", value: "api" },
+          { label: "兼容模式 ", value: "tasklist" }
+        ];
+        let modeBtnsHtml = "";
+        modeOptions.forEach((opt) => {
+          const isSelected = (opt.value === currentMode);
+          const bg = isSelected ? "#ff9800" : "#444"; 
+          const color = isSelected ? "#fff" : "#ccc";
+          modeBtnsHtml += '<button class="leigod-mode-btn" data-mode="' + opt.value + '" style="background:' + bg + '; border:none; color:' + color + '; padding:8px 0; border-radius: 4px; cursor: pointer; font-size: 13px; font-family: Microsoft YaHei; transition: all 0.2s;">' + opt.label + '</button>';
+        });
+
+        modal.innerHTML =
+          \`<div style="background: #2b2b2b; padding: 20px 30px; border-radius: 8px; color: #fff; text-align: center; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5); width: 340px; box-sizing: border-box;">
+           <h3 style="margin: 0 0 10px 0; font-size: 16px; font-weight: normal; color: #ff9800;">首次启动等待时间</h3>
+          <p style="font-size: 13px; color: #aaa; margin: 0 0 20px 0; line-height: 1.5; text-align: left;">
+              请选择开启加速后，多长时间后未检测到游戏进程，则自动暂停加速。
+          </p>
+          <div style="display: grid; grid-template-columns:  repeat(3, 1fr); gap: 12px;">
+        \${startupBtnsHtml}
+          </div>
+          <h3 style="margin: 0 0 10px 0; font-size: 16px; font-weight: normal; color: #ff9800;">游戏退出等待时间</h3>
+          <p style="font-size: 13px; color: #aaa; margin: 0 0 20px 0; line-height: 1.5; text-align: left;">
+              请选择游戏进程结束后，多长时间自动暂停加速。
+          </p>
+          <div style="display: grid; grid-template-columns:  repeat(3, 1fr); gap: 12px;">
+        \${graceBtnsHtml}
+          </div>        
+          <h3 style="margin: 0 0 10px 0; font-size: 16px; font-weight: normal; color: #ff9800;">进程检测模式</h3>
+          <p style="font-size: 12px; color: #aaa; margin: 0 0 15px 0; line-height: 1.5; text-align: left;">如使用api模式导致某些游戏无法进入，请尝试切换至兼容模式。</p>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            \${modeBtnsHtml}
+          </div>
+        </div>\`;
+        document.body.appendChild(modal);
+        modal.onclick = (e) => { //点击遮罩层关闭面板
+          if (e.target === modal) modal.remove();
+        };
+        
+        // 启动项的按钮逻辑
+        const startupBtns = modal.querySelectorAll(".leigod-startup-btn");
+        startupBtns.forEach((btn) => {
+          btn.onmouseenter = () => { if (btn.style.backgroundColor !== "rgb(255, 152, 0)") btn.style.backgroundColor = "#555"; };
+          btn.onmouseleave = () => { if (btn.style.backgroundColor !== "rgb(255, 152, 0)") btn.style.backgroundColor = "#444"; };
+          btn.onclick = () => {
+            const ms = btn.getAttribute("data-ms");
+            localStorage.setItem("leigod_startup_time", ms);
+            window.leigodSimplify.invoke("open-external", "leigod-plugin://set-startup-time?ms=" + ms);
+            //启动项的按钮逻辑
+            startupBtns.forEach(b => { b.style.backgroundColor = "#444"; b.style.color = "#ccc"; }); //重置所有按钮
+            btn.style.backgroundColor = "#ff9800"; btn.style.color = "#fff"; //高亮当前按钮
+          };
+        });
+
+       //游戏退出等待时间的按钮逻辑
+        const graceBtns = modal.querySelectorAll(".leigod-grace-btn");
+        graceBtns.forEach((btn) => {
+          btn.onmouseenter = () => { if (btn.style.backgroundColor !== "rgb(255, 152, 0)") btn.style.backgroundColor = "#555"; };
+          btn.onmouseleave = () => { if (btn.style.backgroundColor !== "rgb(255, 152, 0)") btn.style.backgroundColor = "#444"; };
+          btn.onclick = () => {
+            const ms = btn.getAttribute("data-ms");
+            localStorage.setItem("leigod_grace_time", ms);
+            window.leigodSimplify.invoke("open-external", "leigod-plugin://set-time?ms=" + ms);
+            graceBtns.forEach(b => { b.style.backgroundColor = "#444"; b.style.color = "#ccc"; });
+            btn.style.backgroundColor = "#ff9800"; btn.style.color = "#fff";
+          };
+        });
+
+          const modeBtns = modal.querySelectorAll(".leigod-mode-btn");
+          modeBtns.forEach((btn) => {
+          btn.onmouseenter = () => { if (btn.style.backgroundColor !== "rgb(255, 152, 0)") btn.style.backgroundColor = "#555"; };
+          btn.onmouseleave = () => { if (btn.style.backgroundColor !== "rgb(255, 152, 0)") btn.style.backgroundColor = "#444"; };
+          btn.onclick = () => {
+            const mode = btn.getAttribute("data-mode");
+            localStorage.setItem("leigod_check_mode", mode);
+            window.leigodSimplify.invoke("open-external", "leigod-plugin://set-mode?mode=" + mode);
+            modeBtns.forEach(b => { b.style.backgroundColor = "#444"; b.style.color = "#ccc"; });
+            btn.style.backgroundColor = "#ff9800"; btn.style.color = "#fff";
+          };
+        });
+      }
+    };
+    navControl.insertBefore(div, redpackWrap);
+  }
+}, 500);`;
+
+            try {
+              window.webContents.executeJavaScript(script);
+              // eslint-disable-next-line no-unused-vars
+            } catch (e) {
+              writeLog("[Monitor] UI Injection Error");
+            }
+          }
+        });
+      } catch (e) {
+        writeLog(`[Monitor] UI Injection Check Error: ${e.message}`);
+      }
+    });
+  }
+  //该函数用于更新ui状态
+  function updateUiState(
+    statecode,
+    timeText = null,
+    gameId = GLOBAL_CURRENT_GAME_ID,
+    gameName = GLOBAL_CURRENT_GAME_NAME,
+  ) {
+    //根据状态码拿到相应的配置
+    const cfg = UI_STATES[statecode.toUpperCase()];
+    if (!cfg) {
+      //兜底检查
+      writeLog(`[Update UI State] Invalid state code: ${statecode}`);
+      return;
+    }
+    //判断是否需要显示时间
+    const displayText = timeText ? timeText : cfg.text;
+    const script = `(function (){
+    const div = document.getElementById('leigod-monitor-Widget');
+    const txt = document.getElementById('leigod-status-text');
+    if(div && txt){
+        div.style.color=\`${cfg.color}\`;
+        div.style.background=\`${cfg.bg}\`;
+        txt.innerText=\`${displayText}\`;
+        div.dataset.state = \`${cfg.code}\`; //告诉悬停
+        if (${JSON.stringify(gameId)} !== null) {
+            div.dataset.gameId = String(${JSON.stringify(gameId)});
+            div.dataset.gameName = ${JSON.stringify(gameName)};
+        } else if ('${cfg.code}' !== 'missing') {
+            delete div.dataset.gameId;
+            delete div.dataset.gameName;
+        }
+        if('${cfg.code}' === 'counting') {
+            div.title = "误判了？点击暂停倒计时，并上报真实进程";
+        } else if('${cfg.code}' === 'missing') {
+            div.title = "点击设置当前游戏的自定义进程名";
+        } else {
+            div.title = ""; 
+        }
+    }
+  })() `;
+
+    try {
+      mainWindow.webContents.executeJavaScript(script);
+    } catch (e) {
+      writeLog("[Update UI State] Failed to update UI state: " + e.message);
+    }
+  }
+
+  // ========== 关机和窗口关闭处理 ==========
+  //该函数用于拦截主窗口关闭事件 用于在关机时暂停加速器
+  function patchMainWindowClose() {
+    writeLog("[patchMainWindowClose] Patching main window close event...");
+    if (!mainWindow) {
+      writeLog(
+        "[patchMainWindowClose] Could not find main window to patch close event.",
+      );
+      return;
+    }
+
+    //监听session-end 用于在关机时暂停加速器
+    mainWindow.on("session-end", (event) => {
+      writeLog(
+        "[Shutdown] session-end TRIGGERED! Windows is asking to shutdown.",
+      );
+      event.preventDefault(); //阻止关机，虽然并没有什么卵用
+      writeLog("[Shutdown] Triggered. Launching CURL Missile...");
+
+      if (!GLOBAL_USER_TOKEN) {
+        //检查有没有用户令牌
+        writeLog("[Shutdown] No user token found.");
+        app.exit(0);
+        return;
+      }
+      const API_URL = "https://webapi.leigod.com/api/user/pause";
+      // {"account_token": "xxx", "lang": "zh_CN"}.
+      //设置请求体
+      const jsonBody = JSON.stringify({
+        account_token: GLOBAL_USER_TOKEN,
+        lang: "zh_CN",
+      });
+
+      try {
+        //使用execFileSync同步调用curl，确保请求完成后才退出
+        const result = execFileSync(
+          "curl.exe",
+          [
+            "-s",
+            "-X",
+            "POST",
+            API_URL,
+            "-H",
+            "Content-Type: application/json",
+            "-d",
+            jsonBody,
+            "-m",
+            "3",
+          ],
+          { timeout: 4000, windowsHide: true },
+        );
+        writeLog(`[Shutdown] Pause response: ${result.toString()}`);
+      } catch (e) {
+        writeLog(`[Shutdown] curl error: ${e.message}`);
+      }
+      //晚安，世界。
+      writeLog("[Shutdown] Good night, world.");
+      app.exit(0);
+    });
+
+    mainWindow.on("close", async (event) => {
+      //监听窗口关闭事件
+      event.preventDefault(); //preventDefault
+      writeLog(
+        "[Close Intercept] Window close event triggered. Preventing immediate close.",
+      );
+      try {
+        writeLog(
+          '[Close Intercept] Attempting to execute "pause-user-time" command...',
+        );
+        await mainWindow.webContents.executeJavaScript(
+          'window.leigodSimplify.invoke("pause-user-time")',
+        );
+        // eslint-disable-next-line no-unused-vars
+      } catch (e) {
+        /*这里执行暂停后会抛出异常但是无所谓了因为已经暂停了*/
+        writeLog(
+          "[Close Intercept] Caught expected exception after command execution. Ignoring.",
+        );
+      } finally {
+        //无论否成功，都强制退出程序
+        writeLog(
+          "[Close Intercept] All tasks finished. Forcing application quit.",
+        );
+        app.exit(0);
+      }
+    });
+  }
+  // ========== 初始化 ==========
+  //程序入口与初始化
+  try {
+    fs.writeFileSync(logFilePath, "");
+    // eslint-disable-next-line no-unused-vars
+  } catch (err) {
+    /* empty */
+  } //清空日志文件
+
+  writeLog("[Main] Script loaded and log file cleared.");
+  app.whenReady().then(() => {
+    //完成初始化后执行下面操作
+    showStartupNotification(
+      "Leigod Smart Monitor 已启用",
+      "leigod-auto-pause插件加载成功",
+      false,
+    );
+    patchIpcMain();
+    injectStatusWidget();
+     
+  });
+  require("bytenode");
+  require("./main.jsc");
+} catch (e) {
+  console.error("leigod-appmain.js error:", e);
+  const { dialog } = require("electron");
+  dialog.showErrorBox("leigod-appmain.js", e + "" + e.stack);
+  process.exit(1);
+}
