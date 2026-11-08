@@ -38,7 +38,7 @@
 
 1. **下载启动器**
    
-   * 从 [Releases页面](https://gitee.com/assortest/Leigod_Auto_Pause/releases/) 下载最新版 `Leigod_Auto_Pause.exe`
+   * 从 [Releases页面]() 下载最新版 `Leigod_Auto_Pause.exe`
 2. **放置文件**
    
    * 将下载的文件放入雷神加速器安装目录（与 `leigod.exe` 同级）
